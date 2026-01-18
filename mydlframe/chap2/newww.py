@@ -1,3 +1,4 @@
+import heapq
 import weakref
 
 import numpy as np
@@ -69,12 +70,12 @@ class Variable:
         seen_set=set()
         def add_func(f):
             if f not in seen_set:
-                funcs.append(f)
+                heapq.heappush(funcs, (-f.generation, id(f), f))
                 seen_set.add(f)
-                funcs.sort(key=lambda q: q.generation)
+
         add_func(self.creator)
         while funcs:
-            f=funcs.pop()
+            _, _, f = heapq.heappop(funcs)
             gys=[output().grad for output in f.outputs]
             gxs=f.backward(*gys)
             if not isinstance(gxs,tuple):
