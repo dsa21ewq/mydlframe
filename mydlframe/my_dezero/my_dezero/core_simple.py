@@ -1,15 +1,10 @@
+import contextlib
 import heapq
 import weakref
-
 import numpy as np
-import os
-
-from fontTools.misc.cython import returns
-from graphviz import Digraph
-import contextlib
-
 class Config:
     enable_backprop=True
+@contextlib.contextmanager
 def using_config(name,value):
     old_value=getattr(Config,'enable_backprop')
     setattr(Config,'enable_backprop',value)
@@ -222,68 +217,9 @@ def pow(x,c):
     return Pow(c)(x)
 
 
-
-
 def numerical_diff(f,x,eps=1e-4):
-    x0=Variable(x.data-eps)
-    x1=Variable(x.data+eps)
+    x0=Variable(as_array(x.data-eps))
+    x1=Variable(as_array(x.data+eps))
     y0=f(x0)
     y1=f(x1)
     return (y1.data-y0.data)/(2*eps)
-
-
-
-a=Variable(np.array(2))
-b=Variable(np.array(3))
-print(b**2)
-#
-#
-# def get_dot_graph(output, verbose=True):
-#     os.environ["PATH"] += os.pathsep + r'C:\Program Files\Graphviz\bin'
-#     dot = Digraph()
-#     funcs = []
-#     seen_set = set()
-#
-#     def add_func(f):
-#         if f is not None and f not in seen_set:
-#             funcs.append(f)
-#             seen_set.add(f)
-#
-#     # 绘制起始输出节点
-#     var_label = f"Variable (ID:{output.id})\ndata: {output.data}"
-#     dot.node(str(id(output)), var_label, color='orange', style='filled')
-#
-#     add_func(output.creator)
-#
-#     while funcs:
-#         f = funcs.pop()
-#         # 绘制函数节点
-#         func_label = f"{f.__class__.__name__} (ID:{f.id})\ngen: {f.generation}"
-#         dot.node(str(id(f)), func_label, shape='record')
-#
-#         # --- 修改点 1: 处理弱引用输出 ---
-#         for wx in f.outputs:
-#             x = wx()  # 调用弱引用获取实例
-#             if x is not None:
-#                 # 只有当变量还存在时才连线
-#                 dot.edge(str(id(f)), str(id(x)))
-#
-#         # 连线: 输入变量 -> 函数
-#         for x in f.inputs:
-#             var_label = f"Variable (ID:{x.id})\ndata: {x.data}\ngrad: {x.grad}"
-#             dot.node(str(id(x)), var_label, color='lightblue', style='filled')
-#             dot.edge(str(id(x)), str(id(f)))
-#
-#             if x.creator is not None:
-#                 add_func(x.creator)
-#
-#     return dot
-# def plot_graph(output, filename="graph.png"):
-#     dot = get_dot_graph(output)
-#     # 保存为图片
-#     dot.render(filename.split('.')[0], format='png', cleanup=True)
-#     print(f"计算图已保存至: {filename}")
-#
-# # --- 使用示例 ---
-# # 确保你之前的变量 A 已经计算完成
-# plot_graph(A, "my_computation_graph.png")
