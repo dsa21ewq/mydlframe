@@ -1,7 +1,11 @@
 import contextlib
 import heapq
+import os
 import weakref
 import numpy as np
+from graphviz import Digraph
+
+
 class Config:
     enable_backprop=True
 @contextlib.contextmanager
@@ -217,9 +221,81 @@ def pow(x,c):
     return Pow(c)(x)
 
 
+class Sin(Func):
+    def forward(self,x):
+        y=np.sinx(x)
+        return y
+    def backward(self,gy):
+        x=self.inputs[0].data
+        gx=gy*np.cosx(x)
+        return gx
+def sin(x):
+    return Sin()(x)
+
 def numerical_diff(f,x,eps=1e-4):
     x0=Variable(as_array(x.data-eps))
     x1=Variable(as_array(x.data+eps))
     y0=f(x0)
     y1=f(x1)
     return (y1.data-y0.data)/(2*eps)
+
+
+
+# plotting
+def get_dot_graph(output, verbose=True):
+    os.environ["PATH"] += os.pathsep + r'C:\Program Files\Graphviz\bin'
+
+    # 增加全局属性：更清晰的字体和布局方向
+    dot = Digraph()
+    dot.attr(rankdir='TB')  # TB: 从上到下, LR: 从左到右
+    dot.attr('node', fontname='Verdana', fontsize='10')
+
+    funcs = []
+    seen_set = set()
+
+    def add_func(f):
+        if f is not None and f not in seen_set:
+            funcs.append(f)
+            seen_set.add(f)
+
+    # 绘制起始输出节点
+    node_name = f"<<B>{output.name}</B><BR/>" if output.name else ""
+    # 使用 HTML-like 标签让名字加粗，提高辨识度
+    var_label = f"<{node_name}Variable (ID:{output.id})<BR/>data: {output.data}>"
+    dot.node(str(id(output)), var_label, color='orange', style='filled', shape='ellipse')
+
+    add_func(output.creator)
+
+    while funcs:
+        f = funcs.pop()
+        # 函数节点改用 'box' 并加粗边框
+        func_label = f"{f.__class__.__name__} (ID:{f.id})\ngen: {f.generation}"
+        dot.node(str(id(f)), func_label, shape='box', style='filled, bold', fillcolor='lightgrey')
+
+        for wx in f.outputs:
+            x = wx()
+            if x is not None:
+                x_name = f"<<B>{x.name}</B><BR/>" if x.name else ""
+                x_label = f"<{x_name}Variable (ID:{x.id})<BR/>data: {x.data}>"
+                dot.node(str(id(x)), x_label, color='orange', style='filled', shape='ellipse')
+                dot.edge(str(id(f)), str(id(x)))
+
+        for x in f.inputs:
+            x_name = f"<<B>{x.name}</B><BR/>" if x.name else ""
+            # 如果有梯度，分行显示提高清晰度
+            grad_str = f"<BR/>grad: {x.grad}" if x.grad is not None else ""
+            var_label = f"<{x_name}Variable (ID:{x.id})<BR/>data: {x.data}{grad_str}>"
+
+            dot.node(str(id(x)), var_label, color='lightblue', style='filled', shape='ellipse')
+            dot.edge(str(id(x)), str(id(f)))
+
+            if x.creator is not None:
+                add_func(x.creator)
+
+    return dot
+def plot_graph(output, filename="graph.png"):
+    dot = get_dot_graph(output)
+    dot.attr(dpi='300')
+    # 保存为图片
+    dot.render(filename.split('.')[0], format='png', cleanup=True)
+    print(f"计算图已保存至: {filename}")

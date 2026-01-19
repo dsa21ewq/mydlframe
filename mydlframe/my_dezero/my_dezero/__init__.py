@@ -2,7 +2,7 @@
 from .core_simple import Variable, Config, no_grad, using_config
 
 # 从 core_simple.py 中导出所有的算子函数
-from .core_simple import add, mul, sub, neg, div, pow, square, exp
+from .core_simple import add, mul, sub, neg, div, pow, square, exp,get_dot_graph,plot_graph
 
 # 导出工具函数
 from .core_simple import as_array, as_variable
@@ -21,5 +21,7 @@ __all__ = [
     'square',
     'exp',
     'as_array',
-    'as_variable'
+    'as_variable',
+    'get_dot_graph',
+    'plot_graph'
 ]
