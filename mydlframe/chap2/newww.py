@@ -3,6 +3,8 @@ import weakref
 
 import numpy as np
 import os
+
+from fontTools.misc.cython import returns
 from graphviz import Digraph
 import contextlib
 
@@ -30,6 +32,18 @@ class Variable:
         return add(self,other)
     def __radd__(self, other):
         return add(self,other)
+    def __sub__(self, other):
+        return sub(self,other)
+    def __rsub__(self, other):
+        return rsub(self,other)
+    def __truediv__(self, other):
+        return div(self,other)
+    def __rtruediv__(self, other):
+        return rdiv(self,other)
+    def __neg__(self):
+        return neg(self)
+    def __pow__(self, power, modulo=None):
+        return pow(self,power)
     def shape(self):
         return self.data.shape
     def ndim(self):
@@ -130,18 +144,27 @@ class Add(Func):
         return (y,)#(y,)? y is not iterable
     def backward(self,gy):
         return gy,gy
+def add(x0,x1):
+    x1=as_array(x1)
+    return Add()(x0,x1)
 class Square(Func):
     def forward(self,x):
         return x**2
     def backward(self,gy):
         x=self.inputs[0].data
         return gy*2*x
+def square(x):
+    return Square()(x)
+
 class Exp(Func):
     def forward(self,x):
         return np.exp(x)
     def backward(self,gy):
         x=self.inputs[0].data
         return gy*np.exp(x)
+
+def exp(x):
+    return Exp()(x)
 
 class Mul(Func):
     def forward(self,x1,x2):
@@ -155,13 +178,54 @@ def mul(x0,x1):
     x1 = as_array(x1)
     return Mul()(x0,x1)
 
-class Real_io_function(Func):
-    def forward(self,x,y):
-        return (x**2)*y,(y**2)*x
-    def backward(self,ga,gb):
+class Neg(Func):
+    def forward(self,x):
+        return -x
+    def backward(self,gy):
+        return -gy
+def neg(x):
+    return Neg()(x)
+class Sub(Func):
+    def forward(self,x0,x1):
+        return x0-x1
+    def backward(self,gy):
+        return gy,-gy
+def sub(x0,x1):
+    x1=as_array(x1)
+    return Sub()(x0,x1)
+def rsub(x0,x1):
+    x1=as_array(x1)
+    return Sub()(x1,x0)
+
+class Div(Func):
+    def forward(self,x0,x1):
+        return x0/x1
+    def backward(self,gy):
+        x0=self.inputs[0].data
+        x1=self.inputs[1].data
+        return gy/x1,gy*(-1)*(x0/x1**2)
+def div(x0,x1):
+    x1=as_array(x1)
+    return Div()(x0,x1)
+def rdiv(x0,x1):
+    x1=as_array(x1)
+    return Div()(x1,x0)
+
+class Pow(Func):
+    def __init__(self,c):
+        self.c=c
+    def forward(self,x):
+        return x**self.c
+    def backward(self,gy):
+        c=self.c
         x=self.inputs[0].data
-        y=self.inputs[1].data
-        return [2*x*y*ga+y**2 * gb,x**2*ga+2*x*y*gb]
+        return c*x**(c-1)*gy
+def pow(x,c):
+    return Pow(c)(x)
+
+
+
+
 def numerical_diff(f,x,eps=1e-4):
     x0=Variable(x.data-eps)
     x1=Variable(x.data+eps)
@@ -169,25 +233,11 @@ def numerical_diff(f,x,eps=1e-4):
     y1=f(x1)
     return (y1.data-y0.data)/(2*eps)
 
-def square(x):
-    return Square()(x)
-
-def exp(x):
-    return Exp()(x)
-
-def add(x0,x1):
-    x1=as_array(x1)
-    return Add()(x0,x1)
-
-def multiple_output_function(x):
-    return Square()(x),Square()(x)
-def multiple_io_function(x,y):
-    return Square()(x),Square()(y)
 
 
 a=Variable(np.array(2))
 b=Variable(np.array(3))
-print(3*a+1)
+print(b**2)
 #
 #
 # def get_dot_graph(output, verbose=True):
