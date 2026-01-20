@@ -73,11 +73,10 @@ class Variable:
     def set_creator(self, func):
         self.creator = func
         self.generation = func.generation + 1
-    def backward(self,retain_grad=False):
+    def backward(self,retain_grad=False,create_graph=False):
         if self.grad is None:
-            self.grad=np.ones_like(self.data)
+            self.grad=Variable(np.ones_like(self.data))
         funcs=[]# 加个[]仅用于可遍历
-        # 我并不理解seen_set 的作用，开个boolean似乎是等价的
         seen_set=set()
         def add_func(f):
             if f not in seen_set:
@@ -88,18 +87,20 @@ class Variable:
         while funcs:
             _, _, f = heapq.heappop(funcs)
             gys=[output().grad for output in f.outputs]
-            gxs=f.backward(*gys)
-            if not isinstance(gxs,tuple):
-                gxs=(gxs,)
-            for x,gx in zip(f.inputs,gxs):
-                if x.grad is None:
-                    x.grad = gx
-                else: x.grad=x.grad+gx
-                if x.creator is not None:
-                    add_func(x.creator)
-            if not retain_grad:
-                for y in f.outputs:
-                    y().grad=None
+            with using_config('enable_backprop',create_graph):
+                gxs = f.backward(*gys)
+                if not isinstance(gxs, tuple):
+                    gxs = (gxs,)
+                for x, gx in zip(f.inputs, gxs):
+                    if x.grad is None:
+                        x.grad = gx
+                    else:
+                        x.grad = x.grad + gx
+                    if x.creator is not None:
+                        add_func(x.creator)
+                if not retain_grad:
+                    for y in f.outputs:
+                        y().grad = None
 def as_array(x):
     if np.isscalar(x):
         return np.array(x)
@@ -148,7 +149,7 @@ class Square(Func):
     def forward(self,x):
         return x**2
     def backward(self,gy):
-        x=self.inputs[0].data
+        x=self.inputs[0]
         return gy*2*x
 def square(x):
     return Square()(x)
@@ -157,8 +158,8 @@ class Exp(Func):
     def forward(self,x):
         return np.exp(x)
     def backward(self,gy):
-        x=self.inputs[0].data
-        return gy*np.exp(x)
+        x=self.inputs[0]
+        return gy*exp(x)
 
 def exp(x):
     return Exp()(x)
@@ -168,8 +169,8 @@ class Mul(Func):
         y=x1*x2
         return (y,)
     def backward(self,gy):
-        x0=self.inputs[0].data
-        x1=self.inputs[1].data
+        x0=self.inputs[0]
+        x1=self.inputs[1]
         return x1*gy,x0*gy
 def mul(x0,x1):
     x1 = as_array(x1)
@@ -198,8 +199,8 @@ class Div(Func):
     def forward(self,x0,x1):
         return x0/x1
     def backward(self,gy):
-        x0=self.inputs[0].data
-        x1=self.inputs[1].data
+        x0=self.inputs[0]
+        x1=self.inputs[1]
         return gy/x1,gy*(-1)*(x0/x1**2)
 def div(x0,x1):
     x1=as_array(x1)
@@ -215,7 +216,7 @@ class Pow(Func):
         return x**self.c
     def backward(self,gy):
         c=self.c
-        x=self.inputs[0].data
+        x=self.inputs[0]
         return c*x**(c-1)*gy
 def pow(x,c):
     return Pow(c)(x)
@@ -223,14 +224,24 @@ def pow(x,c):
 
 class Sin(Func):
     def forward(self,x):
-        y=np.sinx(x)
+        y=np.sin(x)
         return y
     def backward(self,gy):
-        x=self.inputs[0].data
-        gx=gy*np.cosx(x)
+        x=self.inputs[0]
+        gx=gy*cos(x)
         return gx
 def sin(x):
     return Sin()(x)
+
+
+class Cos(Func):
+    def forward(self, x):
+        return np.cos(x)
+    def backward(self, gy):
+        x = self.inputs[0]
+        return gy * -sin(x)
+def cos(x):
+    return Cos()(x)
 
 def numerical_diff(f,x,eps=1e-4):
     x0=Variable(as_array(x.data-eps))
@@ -240,62 +251,68 @@ def numerical_diff(f,x,eps=1e-4):
     return (y1.data-y0.data)/(2*eps)
 
 
-
-# plotting
 def get_dot_graph(output, verbose=True):
-    os.environ["PATH"] += os.pathsep + r'C:\Program Files\Graphviz\bin'
-
-    # 增加全局属性：更清晰的字体和布局方向
     dot = Digraph()
-    dot.attr(rankdir='TB')  # TB: 从上到下, LR: 从左到右
+    dot.attr(rankdir='TB')
     dot.attr('node', fontname='Verdana', fontsize='10')
 
     funcs = []
     seen_set = set()
+
+    # 辅助函数：确保 ID 是以字母开头的安全字符串，避免 Graphviz 语法解析错误
+    def safe_id(obj):
+        return "node_" + str(id(obj))
 
     def add_func(f):
         if f is not None and f not in seen_set:
             funcs.append(f)
             seen_set.add(f)
 
-    # 绘制起始输出节点
-    node_name = f"<<B>{output.name}</B><BR/>" if output.name else ""
-    # 使用 HTML-like 标签让名字加粗，提高辨识度
+    # 1. 绘制起始变量节点 (输出节点)
+    node_name = f"<B>{output.name}</B><BR/>" if output.name else ""
     var_label = f"<{node_name}Variable (ID:{output.id})<BR/>data: {output.data}>"
-    dot.node(str(id(output)), var_label, color='orange', style='filled', shape='ellipse')
+    dot.node(safe_id(output), var_label, color='orange', style='filled', shape='ellipse')
 
     add_func(output.creator)
 
     while funcs:
         f = funcs.pop()
-        # 函数节点改用 'box' 并加粗边框
-        func_label = f"{f.__class__.__name__} (ID:{f.id})\ngen: {f.generation}"
-        dot.node(str(id(f)), func_label, shape='box', style='filled, bold', fillcolor='lightgrey')
 
+        # 2. 绘制函数节点 (算子)
+        func_label = f"{f.__class__.__name__} (ID:{f.id})\ngen: {f.generation}"
+        dot.node(safe_id(f), func_label, shape='box', style='filled, bold', fillcolor='lightgrey')
+
+        # 3. 绘制函数的所有输出 (通常是 output 本身)
         for wx in f.outputs:
             x = wx()
             if x is not None:
-                x_name = f"<<B>{x.name}</B><BR/>" if x.name else ""
+                x_name = f"<B>{x.name}</B><BR/>" if x.name else ""
                 x_label = f"<{x_name}Variable (ID:{x.id})<BR/>data: {x.data}>"
-                dot.node(str(id(x)), x_label, color='orange', style='filled', shape='ellipse')
-                dot.edge(str(id(f)), str(id(x)))
+                dot.node(safe_id(x), x_label, color='orange', style='filled', shape='ellipse')
+                dot.edge(safe_id(f), safe_id(x))
 
+        # 4. 绘制函数的所有输入
         for x in f.inputs:
-            x_name = f"<<B>{x.name}</B><BR/>" if x.name else ""
-            # 如果有梯度，分行显示提高清晰度
-            grad_str = f"<BR/>grad: {x.grad}" if x.grad is not None else ""
+            x_name = f"<B>{x.name}</B><BR/>" if x.name else ""
+            # 如果有梯度，分行显示，注意：由于 gx 的 backward 也会调用此函数，这里会递归显示梯度数据
+            grad_val = x.grad.data if (x.grad is not None and x.grad.data is not None) else "None"
+            grad_str = f"<BR/>grad: {grad_val}" if x.grad is not None else ""
+
             var_label = f"<{x_name}Variable (ID:{x.id})<BR/>data: {x.data}{grad_str}>"
 
-            dot.node(str(id(x)), var_label, color='lightblue', style='filled', shape='ellipse')
-            dot.edge(str(id(x)), str(id(f)))
+            dot.node(safe_id(x), var_label, color='lightblue', style='filled', shape='ellipse')
+            dot.edge(safe_id(x), safe_id(f))
 
             if x.creator is not None:
                 add_func(x.creator)
 
     return dot
+
+
 def plot_graph(output, filename="graph.png"):
     dot = get_dot_graph(output)
     dot.attr(dpi='300')
-    # 保存为图片
-    dot.render(filename.split('.')[0], format='png', cleanup=True)
-    print(f"计算图已保存至: {filename}")
+    # 移除 filename 中的扩展名，由 format 参数决定
+    base_name = filename.split('.')[0]
+    dot.render(base_name, format='png', cleanup=True)
+    print(f"计算图已成功保存至: {base_name}.png")

@@ -1,0 +1,28 @@
+digraph {
+	rankdir=TB
+	node [fontname=Verdana fontsize=10]
+	1947447464272 [label=<<<B>gx</B><BR/>Variable (ID:6)<BR/>data: 12.0> color=orange shape=ellipse style=filled]
+	1947449529424 [label="Mul (ID:3)
+gen: 2" fillcolor=lightgrey shape=box style="filled, bold"]
+	1947447464272 [label=<<<B>gx</B><BR/>Variable (ID:6)<BR/>data: 12.0> color=orange shape=ellipse style=filled]
+	1947449529424 -> 1947447464272
+	1947449287184 [label=<Variable (ID:5)<BR/>data: 12.0> color=lightblue shape=ellipse style=filled]
+	1947449287184 -> 1947449529424
+	1947449528144 [label=<Variable (ID:2)<BR/>data: 1.0<BR/>grad: Variable(12.0)> color=lightblue shape=ellipse style=filled]
+	1947449528144 -> 1947449529424
+	1947449058240 [label="Mul (ID:2)
+gen: 1" fillcolor=lightgrey shape=box style="filled, bold"]
+	1947449287184 [label=<Variable (ID:5)<BR/>data: 12.0> color=orange shape=ellipse style=filled]
+	1947449058240 -> 1947449287184
+	1946636630048 [label=<Variable (ID:3)<BR/>data: 4.0> color=lightblue shape=ellipse style=filled]
+	1946636630048 -> 1947449058240
+	1947449465760 [label=<Variable (ID:4)<BR/>data: 3<BR/>grad: Variable(4.0)> color=lightblue shape=ellipse style=filled]
+	1947449465760 -> 1947449058240
+	1947449529104 [label="Pow (ID:1)
+gen: 0" fillcolor=lightgrey shape=box style="filled, bold"]
+	1946636630048 [label=<Variable (ID:3)<BR/>data: 4.0> color=orange shape=ellipse style=filled]
+	1947449529104 -> 1946636630048
+	1947449051184 [label=<<<B>x</B><BR/>Variable (ID:0)<BR/>data: 2.0<BR/>grad: Variable(12.0)> color=lightblue shape=ellipse style=filled]
+	1947449051184 -> 1947449529104
+	dpi=300
+}
