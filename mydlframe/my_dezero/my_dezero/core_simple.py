@@ -43,12 +43,23 @@ class Variable:
         return pow(self,power)
     def shape(self):
         return self.data.shape
+    def reshape(self,*shape):
+        if len(shape)==1 and isinstance(shape[0],(tuple,list)):
+            shape=shape[0]
+        return reshape(self,shape)
+    def transpose(self):
+        return transpose(self)
+    @property
+    def T(self):
+        return transpose(self)
     def ndim(self):
         return self.data.ndim
     def size(self):
         return self.data.size
     def dtype(self):
         return self.data.dtype
+
+
     def __len__(self):
         return len(self.data)
     def __repr__(self):
@@ -116,8 +127,8 @@ class Func:
         Func.__counter += 1
         class_name = self.__class__.__name__
         self.name = f"{name if name else class_name} (ID:{self.id})"
-        if len(inputs) == 1 and isinstance(inputs[0], (list, tuple)):
-            inputs = inputs[0]
+        # if len(inputs) == 1 and isinstance(inputs[0], (list, tuple)):
+        #     inputs = inputs[0]
         inputs=[as_variable(x) for x in inputs]
         xs=[x.data for x in inputs]
         ys=self.forward(*xs)
@@ -135,7 +146,7 @@ class Func:
         raise NotImplementedError()
     def backward(self,gys):
         raise NotImplementedError()
-#     传参的时候unzip，具体函数forward和backward里的穿入和传出都是真实的参数数量的一些数值，不含*
+#     调用传参的时候unzip，具体函数forward和backward里的穿入和传出都是真实的参数数量的一些数值(not variable，\in nparray)，不含*
 class Add(Func):
     def forward(self,x0,x1):
         y=x0+x1
@@ -243,12 +254,74 @@ class Cos(Func):
 def cos(x):
     return Cos()(x)
 
+class Tanh(Func):
+    def forward(self,x):
+        return np.tanh(x)
+    def backward(self,gy):
+        y=self.outputs[0]()
+        gx =gy*(1-y*y)
+        return gx
+def tanh(x):
+    return Tanh()(x)
+
+
+
+class Reshape(Func):
+    def __init__(self,shape):
+        self.shape=shape
+
+    def forward(self,x):
+        self.x_shape=x.shape
+        y=x.reshape(self.shape)
+        return y
+
+    def backward(self,gy):
+        return reshape(gy,self.x_shape)
+
+def reshape(x,shape):
+    if(x.shape==shape):
+        return as_variable(x)
+    return Reshape(shape)(x)
+
+class Transpose(Func):
+    def forward(self,x):
+        return np.transpose(x)
+    def backward(self,gy):
+        return np.transpose(gy)
+
+def transpose(x):
+    return Transpose()(x)
+
+
 def numerical_diff(f,x,eps=1e-4):
     x0=Variable(as_array(x.data-eps))
     x1=Variable(as_array(x.data+eps))
     y0=f(x0)
     y1=f(x1)
     return (y1.data-y0.data)/(2*eps)
+
+
+def newton_minimal(f,iters=10,x=Variable(np.array(1))):
+    for i in range(iters):
+        print(i,x)
+        y = f(x)
+        x.clear_grad()
+        y.backward(create_graph=True)
+        gx = x.grad
+        x.clear_grad()
+        gx.backward()
+        gx2 = x.grad
+        x.data -= gx.data / gx2.data
+
+def n_order_diff(f,n,x):
+    y=f(x)
+    y.backward(create_graph=True)
+    for i in range(n):
+        gx=x.grad
+        x.clear_grad()
+        gx.backward(create_graph=True)
+        print(x.grad)
+
 
 
 def get_dot_graph(output, verbose=True):

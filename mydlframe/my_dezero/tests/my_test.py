@@ -17,35 +17,18 @@ from my_dezero.my_dezero.core_simple import *
 # print(y.data)
 # print(x.grad)
 # plot_graph(y)
-# 1. 创建输入变量
-x = Variable(np.array(2.0), name="x")
+# x = Variable(np.array(2.0), name="x")
+# def f(x):
+#     return x**4-2*x**2
+# newton_minimal(f,iters=10,x=x)
 
-# 2. 正向传播 y = x^3
-y = x ** 3
-y.name = "y"
-
-# 3. 计算一阶导数 (dy/dx)
-# 注意：必须开启 create_graph=True 才能为导数计算构建计算图
-y.backward(create_graph=True)
-gx = x.grad
-gx.name = "gx"
-print(f"一阶导数 (x=2.0): {gx.data}") # 预期结果: 12.0
-
-# 4. 清除之前的梯度，计算二阶导数 (d^2y/dx^2)
-x.clear_grad()
-gx.backward()
-print(f"二阶导数 (x=2.0): {x.grad.data}") # 预期结果: 12.0
-
-# 5. 可视化一阶导数的计算图
-# 确保你已经修复了 safe_id 的问题
-x = Variable(np.array(2.0), name="x")
-y = x ** 4
-y.name = "y"
-
-# 计算一阶导并创建计算图
-y.backward(create_graph=True)
-gx = x.grad
-gx.name = "gx"
-
-# 绘制 gx 的计算图（这展现了导数是如何由 x 计算出来的）
-plot_graph(gx, filename="y_x4_second_order_graph.png")
+x=Variable(np.array([[1,2,3],[4,5,6]]))
+y=Variable(np.array([[10,20,30],[40,50,60]]))
+k=reshape(x,(6,))
+print(k)
+z=x+y
+z.backward(retain_grad=True)
+print(z)
+print(z.grad)
+print(x.grad)
+print(y.grad)

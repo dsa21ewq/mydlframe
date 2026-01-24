@@ -1,6 +1,10 @@
 # 从 core_simple.py 中导出核心类和配置
 from .core_simple import Variable, Config, no_grad, using_config
 
+
+
+# 需要修正
+
 # 从 core_simple.py 中导出所有的算子函数
 from .core_simple import add, mul, sub, neg, div, pow, square, exp,get_dot_graph,plot_graph
 
