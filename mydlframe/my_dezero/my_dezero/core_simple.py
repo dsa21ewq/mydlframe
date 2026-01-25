@@ -93,7 +93,6 @@ class Variable:
             if f not in seen_set:
                 heapq.heappush(funcs, (-f.generation, id(f), f))
                 seen_set.add(f)
-
         add_func(self.creator)
         while funcs:
             _, _, f = heapq.heappop(funcs)
@@ -146,7 +145,8 @@ class Func:
         raise NotImplementedError()
     def backward(self,gys):
         raise NotImplementedError()
-#     调用传参的时候unzip，具体函数forward和backward里的穿入和传出都是真实的参数数量的一些数值(not variable，\in nparray)，不含*
+#     调用传参的时候unzip，具体函数forward穿入和传出都是真实的参数数量的一些数值(not variable，\in nparray)，不含*
+#     backward里的穿入和传出都是真实的参数数量的一些Variable(\in class Variable)
 class Add(Func):
     def forward(self,x0,x1):
         y=x0+x1
@@ -292,6 +292,75 @@ class Transpose(Func):
 def transpose(x):
     return Transpose()(x)
 
+class Sum(Func):
+    def __init__(self,axis,keepdims):
+        self.axis=axis
+        self.keepdims=keepdims
+    def forward(self,x):
+        self.x_shape=x.shape
+        y=x.sum(axis=self.axis,keepdims=self.keepdims)
+        return y
+    def backward(self,gy):
+        gy=reshape_sum_backward(gy,self.x_shape,self.axis,self.keepdims)
+        gx=broadcast_to(gy,self.x_shape)
+        return gx
+    # def backward(self,gy):
+    #     gx=broadcast_to(gy.data,self.x_shape)
+    #     return as_variable(gx) 像这样的话就计算图就断了，无法进行求高阶导数等功能
+#     需要利用Func的子类来保存图，一个Func保证是Var进入Var出
+def sum(x,axis=None,keepdims=False):
+    return Sum(axis,keepdims)(x)
+
+class BroadcastTo(Func):
+    def __init__(self,shape):
+        self.shape=shape
+    def forward(self,x):
+        self.x_shape=x.shape
+        y=np.broadcast_to(x,self.shape)
+        return y
+    def backward(self,gy):
+        gx=sum_to(gy,self.x_shape)
+        return gx
+def broadcast_to(x,shape):
+    if x.shape== shape:
+        return as_variable(x)
+    return BroadcastTo(shape)(x)
+
+class SumTo(Func):
+    def __init__(self,shape):
+        self.shape=shape
+    def forward(self,x):
+        self.x_shape=x.shape
+        return forward_sum_to(x,self.shape)
+    def backward(self,gy):
+        return broadcast_to(gy,self.x_shape)
+def sum_to(x,shape):
+    if x.shape==shape:
+        return as_variable(x)
+    return SumTo(shape)(x)
+
+
+
+def forward_sum_to(x, shape):
+    ndim = len(shape)
+    lead = x.ndim - ndim
+    lead_axis = tuple(range(lead))  # 前置多出来的维度索引
+
+    # 找出 shape 中长度为 1 的轴
+    # 比如 (2, 3) -> (1, 3)，我们需要对第 0 轴求和
+    axis = tuple([i + lead for i, sx in enumerate(shape) if sx == 1])
+
+    # 合并所有需要求和的轴
+    sum_axis = lead_axis + axis
+
+    # 执行求和
+    y = x.sum(axis=sum_axis, keepdims=True)
+
+    # 如果有前置多出来的维度，sum 完之后是 (1, 1, 3)，需要去掉前面的 1 变成 (1, 3)
+    if lead > 0:
+        y = y.squeeze(axis=lead_axis)
+
+    return y
 
 def numerical_diff(f,x,eps=1e-4):
     x0=Variable(as_array(x.data-eps))
@@ -300,6 +369,28 @@ def numerical_diff(f,x,eps=1e-4):
     y1=f(x1)
     return (y1.data-y0.data)/(2*eps)
 
+
+def reshape_sum_backward(gy, x_shape, axis, keepdims):
+    """
+    专门为 Sum 算子的 backward 服务的辅助函数。
+    当 keepdims=False 时，将梯度 gy 重新 reshape 成对齐 x_shape 的形状（即把 axis 变回 1）。
+    """
+    if keepdims or axis is None:
+        return gy
+
+    # 统一将 axis 处理成元组，方便后续逻辑
+    if isinstance(axis, int):
+        axis = (axis,)
+
+    # 构造新的形状
+    # 比如 x_shape 是 (2, 3, 4)，axis=(1,)，gy 形状是 (2, 4)
+    # 我们需要把 gy 变成 (2, 1, 4)
+    actual_axis = [a if a >= 0 else a + len(x_shape) for a in axis]
+    shape = list(x_shape)
+    for a in actual_axis:
+        shape[a] = 1
+
+    return gy.reshape(tuple(shape))
 
 def newton_minimal(f,iters=10,x=Variable(np.array(1))):
     for i in range(iters):
