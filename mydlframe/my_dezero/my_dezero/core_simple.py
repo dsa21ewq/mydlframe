@@ -149,10 +149,17 @@ class Func:
 #     backward里的穿入和传出都是真实的参数数量的一些Variable(\in class Variable)
 class Add(Func):
     def forward(self,x0,x1):
+        self.x0_shape,self.x1_shape=x0.shape,x1.shape
         y=x0+x1
+        # nparray 会自动实现正向的广播，我们只记录shape然后在反向传播中处理
         return (y,)#(y,)? y is not iterable
     def backward(self,gy):
-        return gy,gy
+        gx0=gy
+        gx1=gy
+        if self.x0_shape !=self.x1_shape:
+            gx0=sum_to(gx0,self.x0_shape)
+            gx1=sum_to(gx1,self.x1_shape)
+        return gx0,gx1
 def add(x0,x1):
     x1=as_array(x1)
     return Add()(x0,x1)
@@ -175,20 +182,29 @@ class Exp(Func):
 def exp(x):
     return Exp()(x)
 
+
 class Mul(Func):
-    def forward(self,x1,x2):
-        y=x1*x2
-        return (y,)
-    def backward(self,gy):
-        x0=self.inputs[0]
-        x1=self.inputs[1]
-        return x1*gy,x0*gy
+    def forward(self, x0, x1):
+        self.x0_shape, self.x1_shape = x0.shape, x1.shape
+        y = x0 * x1
+        return y
+
+    def backward(self, gy):
+        x0, x1 = self.inputs
+        gx0 = gy * x1
+        gx1 = gy * x0
+        if self.x0_shape != self.x1_shape:
+            gx0 = sum_to(gx0, self.x0_shape)
+            gx1 = sum_to(gx1, self.x1_shape)
+        return gx0, gx1
 def mul(x0,x1):
     x1 = as_array(x1)
     return Mul()(x0,x1)
 
 class Neg(Func):
     def forward(self,x):
+
+
         return -x
     def backward(self,gy):
         return -gy
@@ -196,9 +212,15 @@ def neg(x):
     return Neg()(x)
 class Sub(Func):
     def forward(self,x0,x1):
+        self.x0_shape, self.x1_shape = x0.shape, x1.shape
         return x0-x1
     def backward(self,gy):
-        return gy,-gy
+        gx0 = gy
+        gx1 = gy
+        if self.x0_shape != self.x1_shape:
+            gx0 = sum_to(gx0, self.x0_shape)
+            gx1 = sum_to(gx1, self.x1_shape)
+        return gx0,-gx1
 def sub(x0,x1):
     x1=as_array(x1)
     return Sub()(x0,x1)
@@ -208,11 +230,18 @@ def rsub(x0,x1):
 
 class Div(Func):
     def forward(self,x0,x1):
+        self.x0_shape, self.x1_shape = x0.shape, x1.shape
+
         return x0/x1
     def backward(self,gy):
-        x0=self.inputs[0]
-        x1=self.inputs[1]
-        return gy/x1,gy*(-1)*(x0/x1**2)
+        x0, x1 = self.inputs
+
+        gx0 = gy / x1
+        gx1 = gy * (-x0 / (x1 ** 2))
+        if self.x0_shape != self.x1_shape:
+            gx0 = sum_to(gx0, self.x0_shape)
+            gx1 = sum_to(gx1, self.x1_shape)
+        return gx0,gx1
 def div(x0,x1):
     x1=as_array(x1)
     return Div()(x0,x1)
@@ -287,10 +316,23 @@ class Transpose(Func):
     def forward(self,x):
         return np.transpose(x)
     def backward(self,gy):
-        return np.transpose(gy)
+        return transpose(gy)
 
 def transpose(x):
     return Transpose()(x)
+
+class Matmul(Func):
+    def forward(self,x,W):
+        return x.dot(W)
+    def backward(self,gy):
+        x,W=self.inputs
+        gx=matmul(gy,W.T)
+        gW=matmul(x.T,gy)
+        return gx,gW
+def matmul(x,W):
+    return Matmul()(x,W)
+
+
 
 class Sum(Func):
     def __init__(self,axis,keepdims):
@@ -307,7 +349,7 @@ class Sum(Func):
     # def backward(self,gy):
     #     gx=broadcast_to(gy.data,self.x_shape)
     #     return as_variable(gx) 像这样的话就计算图就断了，无法进行求高阶导数等功能
-#     需要利用Func的子类来保存图，一个Func保证是Var进入Var出
+#     需要利用Func的子类来保存图，一个Func的forward保证是Var进入Var出，并保存连接
 def sum(x,axis=None,keepdims=False):
     return Sum(axis,keepdims)(x)
 
@@ -361,6 +403,89 @@ def forward_sum_to(x, shape):
         y = y.squeeze(axis=lead_axis)
 
     return y
+
+
+
+class MeanSquaredError(Func):
+    def forward(self,x0,x1):
+        diff =x0-x1
+        y=(diff**2).sum()/len(diff)
+        return y
+    def backward(self,gy):
+        x0,x1=self.inputs
+        diff=x0-x1
+        gx0=gy*diff*(2./len(diff))
+        gx1=-gx0
+        return gx0,gx1
+def mean_squared_error(x0,x1):
+    return MeanSquaredError()(x0,x1)
+
+# if don't like Func Linear
+# also ok to do this:
+def linear_simple(x,W,b=None):
+    t=matmul(x,W)
+    if b is None:
+        return t
+    y=t+b
+    t.data=None #清除tdata，因为不再需要，只需要t用来存梯度
+    return y
+
+
+
+# my Linear
+class Linear(Func):  # 假设你的基类是 Function
+    def forward(self, x, W, b=None):
+        y = x.dot(W)
+        if b is not None:
+            y += b
+        return y
+
+    def backward(self, gy):
+        if len(self.inputs) == 3:
+            x, W, b = self.inputs
+        else:
+            x, W = self.inputs
+            b = None
+
+        gx = matmul(gy, W.T)
+        gW = matmul(x.T, gy)
+
+        if b is not None:
+            # 关键点：gb 需要对 batch 维度求和，保持和 b 形状一致
+            gb = sum(gy, axis=0)
+            return gx, gW, gb
+        return gx, gW
+def linear(x,W,b=None):
+    return Linear()(x,W,b)
+
+
+class Sigmoid(Func):
+    def forward(self,x):
+        return 1/(1+np.exp(-x))
+    def backward(self,gy):
+        y= self.outputs[0]()
+        return gy*y*(1-y)
+def sigmoid(x):
+    return Sigmoid()(x)
+
+class ReLU(Func):
+    def forward(self,x):
+        return np.maximum(0,x)
+    def backward(self,gy):
+            # ???
+            # 从 inputs 获取原始输入 x
+            x, = self.inputs
+            # 创建一个掩码：x > 0 的地方为 1，否则为 0
+            # 这里转换成和 gy 相同的类型
+            mask = (x.data > 0).astype(gy.data.dtype)
+            # 只有 x > 0 的位置，梯度才能传回去
+            gx = gy * mask
+            return gx
+def relu(x):
+    return ReLU()(x)
+
+
+
 
 def numerical_diff(f,x,eps=1e-4):
     x0=Variable(as_array(x.data-eps))

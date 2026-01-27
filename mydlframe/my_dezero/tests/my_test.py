@@ -46,19 +46,22 @@ from my_dezero.my_dezero.core_simple import *
 # print(f"gx 的生成器: {gx.creator}")
 # print("\n梯度的导数 (gx * gx)' :")
 # print(x.grad)
-x = Variable(np.array([[1.0, 2.0], [3.0, 4.0]]))
-y = sum(x * x)  # y = x1^2 + x2^2 + x3^2 + x4^2
-
-# 第一步：计算一阶导
-y.backward(create_graph=True)
-gx = x.grad
-print("一阶梯度 gx:\n", gx) # 应该是 [[2, 4], [6, 8]]
-
-# 第二步：准备计算二阶导
-# 重点：我们不需要对 gx*gx backward，我们直接对 gx 求和再 backward
-# 或者直接对 y 的一阶导数路径进行回溯
-x.clear_grad() # 清除一阶导，准备看二阶导
-gx.backward() # 让一阶梯度 gx 再次反向传播
-
-print("\n二阶梯度 (gx 对 x 的导数):")
-print(x.grad)
+# x = Variable(np.array([[1.0, 2.0], [3.0, 4.0]]))
+# y = sum(x * x)  # y = x1^2 + x2^2 + x3^2 + x4^2
+#
+# # 第一步：计算一阶导
+# y.backward(create_graph=True)
+# gx = x.grad
+# print("一阶梯度 gx:\n", gx) # 应该是 [[2, 4], [6, 8]]
+#
+# # 第二步：准备计算二阶导
+# # 重点：我们不需要对 gx*gx backward，我们直接对 gx 求和再 backward
+# # 或者直接对 y 的一阶导数路径进行回溯
+# x.clear_grad() # 清除一阶导，准备看二阶导
+# gx.backward() # 让一阶梯度 gx 再次反向传播
+#
+# print("\n二阶梯度 (gx 对 x 的导数):")
+# print(x.grad)
+a=np.array([1,2,3])
+b=np.array([1,2])
+print(a/b)
