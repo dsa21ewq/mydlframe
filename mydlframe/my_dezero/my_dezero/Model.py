@@ -1,4 +1,3 @@
-from tabnanny import verbose
 
 from my_dezero.my_dezero.layers import *
 from my_dezero.my_dezero.utils import *
