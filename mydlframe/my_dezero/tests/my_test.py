@@ -62,6 +62,7 @@ from my_dezero.my_dezero.core_simple import *
 #
 # print("\n二阶梯度 (gx 对 x 的导数):")
 # print(x.grad)
-a=np.array([1,2,3])
-b=np.array([1,2])
-print(a/b)
+a=Variable(np.array([[1,2,3],[4,5,6]]))
+indices=[0,0,1]
+y=a[indices]
+print(y)

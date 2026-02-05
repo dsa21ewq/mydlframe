@@ -41,6 +41,8 @@ class Variable:
         return neg(self)
     def __pow__(self, power, modulo=None):
         return pow(self,power)
+    def __getitem__(self, item):
+        return get_item(self,item)
 
     @property
     def shape(self):
@@ -493,7 +495,50 @@ class ReLU(Func):
 def relu(x):
     return ReLU()(x)
 
+class Get_item(Func):
+    def __init__(self,index):
+        self.index=index
+    def forward(self,x):
+        return x[self.index]
+    def backward(self,gy):
+        x=self.inputs[0]
+        return Push_item(self.index,x.shape)(gy)
+def get_item(x,index):
+    return Get_item(index)(x)
 
+class Push_item(Func):
+    def __init__(self,index,in_shape):
+        self.in_shape=in_shape
+        self.index=index
+    def forward(self,gy):
+        gx=np.zeros_like(self.in_shape)
+        np.add.at(gx,self.index,gy)
+        return gx
+    def backward(self,x):
+        return get_item(x,self.index)
+
+
+class SoftmaxCrossEntropy(Func):
+    def forward(self, x, t):
+        # 1. 计算 Softmax (这里内部应该已经减去了 max(x) 以保命)
+        y = softmax_simple(x)
+        self.y = y
+
+        # 2. 计算 Cross Entropy
+        # t 是 one-hot 矩阵，y 也是矩阵
+        # 我们只想要：Loss = - (1/N) * Σ Σ (t_nk * log(y_nk))
+        batch_size = len(x)
+        log_y = np.log(y + 1e-7)  # 加上 1e-7 防止 log(0)
+
+        loss = -np.sum(t * log_y) / batch_size
+        return loss
+
+    def backward(self, gy):
+        # 只要正向传播是上面那样写的，这里的 y - t 就是完美的
+        x, t = self.inputs
+        batch_size = len(t.data)
+        gx = (self.y - t.data) * gy / batch_size
+        return gx
 
 
 def numerical_diff(f,x,eps=1e-4):
@@ -546,3 +591,14 @@ def n_order_diff(f,n,x):
         x.clear_grad()
         gx.backward(create_graph=True)
         print(x.grad)
+
+def softmax1d(x):
+    x=as_variable(x)
+    y=exp(x)
+    sumy=sum(y)
+    return y/sumy
+def softmax_simple(x,axis=1):
+    x=as_variable(x)
+    y=exp(x)
+    sumy=sum(y,axis)
+    return y/sumy
