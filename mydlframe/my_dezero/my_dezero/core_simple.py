@@ -520,17 +520,14 @@ class Push_item(Func):
 
 class SoftmaxCrossEntropy(Func):
     def forward(self, x, t):
-        # 1. 计算 Softmax (这里内部应该已经减去了 max(x) 以保命)
-        y = softmax_simple(x)
-        self.y = y
+        # x, t 都是 ndarray
+        x = x - np.max(x, axis=1, keepdims=True)
+        exp_x = np.exp(x)
+        y = exp_x / np.sum(exp_x, axis=1, keepdims=True)
+        self.y=y
 
-        # 2. 计算 Cross Entropy
-        # t 是 one-hot 矩阵，y 也是矩阵
-        # 我们只想要：Loss = - (1/N) * Σ Σ (t_nk * log(y_nk))
-        batch_size = len(x)
-        log_y = np.log(y + 1e-7)  # 加上 1e-7 防止 log(0)
-
-        loss = -np.sum(t * log_y) / batch_size
+        log_y = np.log(y + 1e-7)
+        loss = -np.sum(t * log_y) / x.shape[0]
         return loss
 
     def backward(self, gy):
@@ -539,6 +536,8 @@ class SoftmaxCrossEntropy(Func):
         batch_size = len(t.data)
         gx = (self.y - t.data) * gy / batch_size
         return gx
+def softmax_cross_entropy(y,t):
+    return SoftmaxCrossEntropy()(y,t)
 
 
 def numerical_diff(f,x,eps=1e-4):
@@ -600,5 +599,5 @@ def softmax1d(x):
 def softmax_simple(x,axis=1):
     x=as_variable(x)
     y=exp(x)
-    sumy=sum(y,axis)
+    sumy=sum(y,axis,keepdims=True)
     return y/sumy
