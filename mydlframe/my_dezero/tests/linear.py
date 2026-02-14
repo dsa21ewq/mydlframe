@@ -1,6 +1,4 @@
-import numpy as np
-
-from my_dezero.my_dezero.core_simple import *
+from my_dezero.core_simple import *
 
 np.random.seed(0)
 x=np.random.rand(100,1)

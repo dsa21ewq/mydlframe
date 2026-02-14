@@ -1,7 +1,4 @@
-import math
-
-import numpy as np
-from my_dezero.my_dezero.core_simple import *
+from my_dezero.core_simple import *
 # def my_sin(x,threshold=1e-150):
 #     y=0
 #     for i in range(0,10000):

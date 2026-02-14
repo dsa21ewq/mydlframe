@@ -1,4 +1,4 @@
-from my_dezero.my_dezero.core_simple import *
+from my_dezero.core_simple import *
 # 生成数据
 np.random.seed(0)
 

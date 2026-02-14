@@ -1,7 +1,5 @@
-import numpy as np
-from my_dezero.my_dezero.Model import *
-from my_dezero.my_dezero.Optimizer import *
-from my_dezero.my_dezero.core_simple import *
+from my_dezero.Optimizer import *
+from my_dezero.core_simple import *
 
 
 
